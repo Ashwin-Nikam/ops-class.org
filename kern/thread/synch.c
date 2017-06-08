@@ -39,6 +39,8 @@
 #include <thread.h>
 #include <current.h>
 #include <synch.h>
+#include <kern/test161.h>
+#include <test.h>
 
 ////////////////////////////////////////////////////////////
 //
@@ -344,4 +346,117 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 
 	//(void)cv;    // suppress warning until code gets written
 	//(void)lock;  // suppress warning until code gets written
+}
+
+////////////////////////////////////////////////////////////
+//
+// Reader-Write Locks.
+
+struct rwlock *
+rwlock_create(const char *name){
+
+	struct rwlock *rwlock;
+
+	rwlock = kmalloc(sizeof(*rwlock));
+	if(rwlock == NULL){
+		return NULL;
+	}
+
+	rwlock->rwlock_name = kstrdup(name);
+	if(rwlock->rwlock_name == NULL){
+		kfree(rwlock);
+		return NULL;
+	}
+
+	rwlock->rwlock_wchan = wchan_create(rwlock->rwlock_name);
+	if(rwlock->rwlock_wchan == NULL){
+		kfree(rwlock->rwlock_name);
+		kfree(rwlock);
+		return NULL;
+	}
+
+	spinlock_init(&rwlock->rwlock_lock);
+	rwlock->rwlock_count = 0;
+
+	return rwlock;
+}
+
+void
+rwlock_destroy(struct rwlock *rwlock){
+
+	KASSERT(rwlock != NULL);
+	KASSERT(rwlock->rwlock_count == 0);
+
+	wchan_destroy(rwlock->rwlock_wchan);
+	spinlock_cleanup(&rwlock->rwlock_lock);
+	kfree(rwlock->rwlock_name);
+	kfree(rwlock);
+}
+
+void 
+rwlock_acquire_read(struct rwlock *rwlock){
+
+	KASSERT(rwlock != NULL);
+
+	if((rwlock->rwlock_mode == 'r') || rwlock->rwlock_count == 0){   //If there are threads already reading or if no thread has the lock
+		rwlock->rwlock_count++;
+		rwlock->rwlock_mode = 'r';
+	}else{															//If there is a write thread who has the lock then wait
+		spinlock_acquire(&rwlock->rwlock_lock);
+		while(rwlock->rwlock_count != 0){
+			wchan_sleep(rwlock->rwlock_wchan, &rwlock->rwlock_lock);
+		}
+		spinlock_release(&rwlock->rwlock_lock);
+		rwlock->rwlock_mode = 'r';
+		rwlock->rwlock_count++;
+	}
+
+	(void)rwlock;
+}
+
+void
+rwlock_release_read(struct rwlock *rwlock){
+
+	KASSERT(rwlock != NULL);
+	KASSERT(rwlock->rwlock_count != 0);
+	KASSERT(rwlock->rwlock_mode == 'r');
+
+	rwlock->rwlock_count--;
+	if(rwlock->rwlock_count == 0){  //If there are no threads who are reading then wake one thread who wants to write
+		spinlock_acquire(&rwlock->rwlock_lock);
+		wchan_wakeone(rwlock->rwlock_wchan, &rwlock->rwlock_lock);
+		spinlock_release(&rwlock->rwlock_lock);
+	}
+
+	(void)rwlock;
+}
+
+void 
+rwlock_acquire_write(struct rwlock *rwlock){
+
+	KASSERT(rwlock != NULL);
+
+	spinlock_acquire(&rwlock->rwlock_lock);
+	while(rwlock->rwlock_count != 0){  //Check is there aren't any threads holding the lock
+		wchan_sleep(rwlock->rwlock_wchan, &rwlock->rwlock_lock);
+	}
+	rwlock->rwlock_count = 1;
+	rwlock->rwlock_mode = 'w';  
+	spinlock_release(&rwlock->rwlock_lock);
+
+	(void)rwlock;
+}
+
+void
+rwlock_release_write(struct rwlock *rwlock){
+
+	KASSERT(rwlock != NULL);
+	KASSERT(rwlock->rwlock_count == 1);
+	KASSERT(rwlock->rwlock_mode == 'w');
+  
+  	rwlock->rwlock_count = 0;
+	spinlock_acquire(&rwlock->rwlock_lock);  //Wake up the threads which are sleeping
+	wchan_wakeone(rwlock->rwlock_wchan, &rwlock->rwlock_lock);
+	spinlock_release(&rwlock->rwlock_lock);
+	(void)rwlock;
 }
