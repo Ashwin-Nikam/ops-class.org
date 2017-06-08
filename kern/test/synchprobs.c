@@ -323,6 +323,7 @@ whalemating(int nargs, char **args) {
 		goto done;
 	}
 
+
 	/* Create the matchmakers */
 	for (j = 0; j < NMATING; j++) {
 		kprintf_t(".");
@@ -335,6 +336,7 @@ whalemating(int nargs, char **args) {
 		}
 		total_count++;
 	}
+
 
 	/*
 	 * Release a random number of matchmakers and wait for them and their

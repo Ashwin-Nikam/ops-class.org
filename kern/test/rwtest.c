@@ -93,7 +93,7 @@ readlocks(void *junk1, unsigned long junk2) {
 	rwlock_release_read(rwlock);
 	kprintf_n("Count: %d Mode: %c\n", rwlock->rwlock_count, rwlock->rwlock_mode);
 
-	success(TEST161_SUCCESS, SECRET, "rwt2");
+	thread_exit();
 }
 
 static
@@ -122,7 +122,7 @@ writelocks(void *junk1, unsigned long junk2) {
 	rwlock_release_write(rwlock);
 	kprintf_n("Count: %d Mode: %c\n", rwlock->rwlock_count, rwlock->rwlock_mode);
 
-	success(TEST161_SUCCESS, SECRET, "rwt2");
+	thread_exit();
 }
 
 
@@ -149,7 +149,11 @@ int rwtest2(int nargs, char **args) {
 		panic("rwt2: thread_fork failed\n");
 	}
 
+	thread_wait_for_count(2);
+
 	success(TEST161_SUCCESS, SECRET, "rwt2");
+	rwlock_destroy(rwlock);
+	rwlock = NULL;	
 
 	return 0;
 }
