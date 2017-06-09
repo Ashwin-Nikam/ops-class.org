@@ -83,7 +83,6 @@ male(uint32_t index)
 	 * appropriate.
 	 */
 
-	
 	male_start(index);
 	P(sem1);
 	male_end(index);

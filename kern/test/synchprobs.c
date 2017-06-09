@@ -616,6 +616,7 @@ int stoplight(int nargs, char **args) {
 		car_directions[i] = -1;
 	}
 
+
 	startcount = NCARS;
 	testlock = lock_create("testlock");
 	if (testlock == NULL) {

@@ -69,12 +69,18 @@
 #include <test.h>
 #include <synch.h>
 
+static struct lock *lockArray[4]; 
+
 /*
  * Called by the driver during initialization.
  */
 
 void
 stoplight_init() {
+	lockArray[0] = lock_create("0_lock");
+	lockArray[1] = lock_create("1_lock");
+	lockArray[2] = lock_create("2_lock");
+	lockArray[3] = lock_create("3_lock");
 	return;
 }
 
@@ -83,6 +89,10 @@ stoplight_init() {
  */
 
 void stoplight_cleanup() {
+	lock_destroy(lockArray[0]);
+	lock_destroy(lockArray[1]);
+	lock_destroy(lockArray[2]);
+	lock_destroy(lockArray[3]);
 	return;
 }
 
@@ -94,6 +104,12 @@ turnright(uint32_t direction, uint32_t index)
 	/*
 	 * Implement this function.
 	 */
+
+	kprintf_n("[turnright] direction: %d index: %d\n", direction, index);
+	lock_acquire(lockArray[direction]);
+	inQuadrant(direction, index);
+	leaveIntersection(index);
+	lock_release(lockArray[direction]);
 	return;
 }
 void
@@ -104,6 +120,32 @@ gostraight(uint32_t direction, uint32_t index)
 	/*
 	 * Implement this function.
 	 */
+
+	uint32_t destination = (direction + 3)%4;	
+	kprintf_n("[gostraight] direction: %d index: %d destination:%d\n", direction, index, destination);
+
+	if(destination < direction){
+
+		lock_acquire(lockArray[destination]);
+		lock_acquire(lockArray[direction]);
+		inQuadrant(direction, index);
+		inQuadrant(destination, index);
+		leaveIntersection(index);
+		lock_release(lockArray[direction]);
+		lock_release(lockArray[destination]);
+
+	}else{
+
+		lock_acquire(lockArray[direction]);
+		lock_acquire(lockArray[destination]);
+		inQuadrant(direction, index);
+		inQuadrant(destination, index);
+		leaveIntersection(index);
+		lock_release(lockArray[destination]);
+		lock_release(lockArray[direction]);	
+	}
+	
+
 	return;
 }
 void
@@ -114,5 +156,46 @@ turnleft(uint32_t direction, uint32_t index)
 	/*
 	 * Implement this function.
 	 */
+
+	uint32_t mid = (direction + 3)%4;
+	uint32_t destination = (mid + 3)%4;
+	kprintf_n("[turnleft] direction: %d index: %d mid:%d destination:%d\n", direction, index, mid, destination);
+
+	uint32_t array[3];
+	array[0] = direction;
+	array[1] = mid;
+	array[2] = destination;
+
+	kprintf_n("BS\n");
+	for(int i=0;i<3;i++){
+		kprintf_n("%d", array[i]);
+	}
+
+	for(int i=0;i<3-1;i++){
+		for(int j=i+1;j<3;j++){
+			if(array[i]>array[j]){
+				uint32_t temp = array[i];
+				array[i] = array[j];
+				array[j] = temp;
+			}
+		}
+	}
+
+	kprintf_n("\nAS\n");
+	for(int i=0;i<3;i++){
+		kprintf_n("%d", array[i]);
+	}
+	
+ 	lock_acquire(lockArray[array[0]]);
+	lock_acquire(lockArray[array[1]]);
+	lock_acquire(lockArray[array[2]]);
+	inQuadrant(direction, index);
+	inQuadrant(mid, index);
+	inQuadrant(destination, index);
+	leaveIntersection(index);
+	lock_release(lockArray[array[2]]);
+	lock_release(lockArray[array[1]]);
+	lock_release(lockArray[array[0]]);
+
 	return;
 }
